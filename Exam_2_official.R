@@ -1,0 +1,150 @@
+getwd()
+rm(list =ls(all=TRUE))
+
+#importing data
+library(rio)
+college_scorecard <- import("2021_exam2_data.xlsx", which = 4)
+
+#viewing summary statistics
+library(stargazer)
+summary(college_scorecard)
+?rio
+
+class(college_scorecard$state_abbr)
+
+#subseting data
+small_scorecard <- subset(college_scorecard, state_abbr==c("TX",
+                                               "LA"))
+
+#only for LA and TX schools
+small_scorecard <-
+  college_scorecard %>%
+  dplyr::filter((state_abbr=="LA"|
+                state_abbr=="TX"))
+#filter for 4 years
+small_scorecard<-
+  small_scorecard %>%
+  dplyr::filter(pred_degree_awarded_ipeds=="3")
+#filter for 2014 & 2015
+small_scorecard<-
+  small_scorecard %>%
+  dplyr::filter(year==2014|
+                  year==2015)
+
+
+#collapsing data
+even_smaller_scorecard <-
+  small_scorecard%>%
+  group_by(inst_name, state_abbr)%>%
+  # tell R the unique IDs
+  summarize(where(is.numeric), sum)%>%
+  # summarize numeric vars by sum
+  select(-c("earnings_med","count_not_working","unitid","year","pred_degree_awarded_ipeds"))
+
+#importing data for avocadoes
+avocados <- import("2021_exam2_data.xlsx", which = 2)
+
+#creating year variable
+#need these packages
+library(lubridate)
+library(tidyverse)
+
+#creating year variable
+avocados <- 
+avocados %>% 
+  dplyr::mutate(year = lubridate::year(avocados$date))
+
+
+#deflating average price variable
+#load package
+library(WDI)
+deflator_data = WDI(country ="all", indicator = c("NY.GDP.DEFL.ZS"),
+                    start = 2015,
+                    end = 2018,
+                    extra = FALSE, cache = NULL)
+names(deflator_data)
+
+
+#rename deflator_data
+setnames(deflator_data, "NY.GDP.DEFL.ZS", "deflator")
+names(deflator_data)
+
+#working in US dollars means we only need US data
+usd_deflator = subset(deflator_data, country == "United States")
+
+#the base of the deflator, where are we deflating or inflating from
+subset(usd_deflator, deflator ==100)
+
+#remove things we don't need anymore
+rm(deflator_data)
+
+#merge the deflator data avocado data frame
+avocados = left_join(avocados,
+                          usd_deflator,
+                          by=c("year"))
+#now lets deflate the data
+avocados$deflatedprice_2015 = avocados$average_price/
+  (avocados$deflator/100)
+avocados$deflatedprice_XXXX <- NULL
+
+#collapsing data frame
+collapsed_avocados <-
+  avocados%>%
+  group_by(year)%>%
+  summarize(across(where(is.numeric), sum))%>%
+  select(-c("deflator","total_volume", "average_price"))
+
+
+#reshaping the collapse avocados dataframe 
+wide_avocados <-
+  collapsed_avocados%>%
+  pivot_wider(id_cols =c("year"),
+              # unique IDs
+              names_from = "year_added",
+              # names for new wide vars
+              values_from = "deflatedprice_2015")
+# data to put in new wide vars
+head(wide_avocados)
+
+
+#training data set questions
+training <- import("2021_exam2_data.xlsx", which = 3)
+
+#creating id variable
+training$id =1:nrow(training)
+#reshaping long
+long_data_frame <-
+  training%>%
+  pivot_longer(cols =starts_with("re_"),
+               # use columns starting with "re_"
+               names_to ="earnings",
+               # name of new column
+               names_prefix = "re_",
+               # part of string to drop
+               values_to = "id",
+               # where to put numeric values
+               names_repair = "minimal")
+
+#summary statistics for long data frame
+summary(long_data_frame)
+
+
+#titanic questions
+titanic <- import("2021_exam2_data.xlsx", which = 1)
+summary(titanic)
+
+#cross tabulation 
+library(doBy)
+summaryBy(female ~ survived, data=titanic, FUN=c(mean,length))
+
+#women were more likely to survive than men
+
+#new variable
+titanic$first_class = ifelse(test = titanic$class==2, yes = "first class", no = "not first class")
+
+#frequency table
+table(titanic$first_class)
+
+#“My Heart Will Go On” by Celine Dion
+
+
